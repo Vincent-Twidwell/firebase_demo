@@ -11,7 +11,7 @@ import 'firebase_options.dart';
 import 'guest_book_message.dart'; 
 
 
-enum Attending { yes, no, unknown }
+
 
 class ApplicationState extends ChangeNotifier {
   ApplicationState() {
@@ -43,19 +43,19 @@ class ApplicationState extends ChangeNotifier {
   int _attendees = 0;
   int get attendees => _attendees;
 
-  Attending _attending = Attending.unknown;
-  StreamSubscription<DocumentSnapshot>? _attendingSubscription;
-  Attending get attending => _attending;
-  set attending(Attending attending) {
-    final userDoc = FirebaseFirestore.instance
-        .collection('attendees')
-        .doc(FirebaseAuth.instance.currentUser!.uid);
-    if (attending == Attending.yes) {
-      userDoc.set(<String, dynamic>{'attending': true});
-    } else {
-      userDoc.set(<String, dynamic>{'attending': false});
-    }
-  }
+
+int _attendingCount = 0;
+int get attendingCount => _attendingCount;
+StreamSubscription<DocumentSnapshot>? _attendingSubscription;
+  Future<void> setAttendingCount(int count) {
+  return FirebaseFirestore.instance
+      .collection('attendees')
+      .doc(FirebaseAuth.instance.currentUser!.uid)
+      .set(<String, dynamic>{
+    'attending': count > 0, // kept so your existing security rules still pass
+    'count': count,
+  });
+}
 
   Future<void> init() async {
     await Firebase.initializeApp(
@@ -67,13 +67,18 @@ class ApplicationState extends ChangeNotifier {
 
     // Add from here...
     FirebaseFirestore.instance
-        .collection('attendees')
-        .where('attending', isEqualTo: true)
-        .snapshots()
-        .listen((snapshot) {
-      _attendees = snapshot.docs.length;
-      notifyListeners();
-    });
+    .collection('attendees')
+    .snapshots()
+    .listen((snapshot) {
+  _attendees = snapshot.docs.fold<int>(0, (sum, doc) {
+    final data = doc.data();
+    final count = data['count'];
+    if (count is int) return sum + count;
+    // Older docs from the YES/NO version have no count: treat "true" as 1.
+    return sum + (data['attending'] == true ? 1 : 0);
+  });
+  notifyListeners();
+});
     // ...to here.
 
     FirebaseAuth.instance.userChanges().listen((user) {
@@ -103,14 +108,13 @@ class ApplicationState extends ChangeNotifier {
             .doc(user.uid)
             .snapshots()
             .listen((snapshot) {
-          if (snapshot.data() != null) {
-            if (snapshot.data()!['attending'] as bool) {
-              _attending = Attending.yes;
-            } else {
-              _attending = Attending.no;
-            }
+          final data = snapshot.data();
+          if (data == null) {
+            _attendingCount = 0;
+          } else if (data['count'] is int) {
+            _attendingCount = data['count'] as int;
           } else {
-            _attending = Attending.unknown;
+            _attendingCount = data['attending'] == true ? 1 : 0;
           }
           notifyListeners();
         });
@@ -118,6 +122,7 @@ class ApplicationState extends ChangeNotifier {
       } else {
         _loggedIn = false;
         // Add from here...
+        _attendingCount = 0;
         _guestBookMessages = [];
         _guestBookSubscription?.cancel();
         _attendingSubscription?.cancel(); // new

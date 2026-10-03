@@ -1,11 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart' // new
     hide EmailAuthProvider, PhoneAuthProvider;    // new
 import 'package:flutter/material.dart';           // new
+import 'package:gtk_flutter/app_state.dart';
 import 'package:gtk_flutter/guest_book.dart';
 import 'package:provider/provider.dart';          // new
-import 'yes_no_selection.dart';             // new
-
-import 'app_state.dart';                          // new
+import 'attendee_count_selection.dart';             // new
 import 'src/authentication.dart';                 // new
 import 'src/widgets.dart';
 
@@ -58,15 +57,15 @@ class HomePage extends StatelessWidget {
                 // ...to here.
                 if (appState.loggedIn) ...[
                   // Add from here...
-                  YesNoSelection(
-                    state: appState.attending,
-                    onSelection: (attending) => appState.attending = attending,
+                  AttendeeCountSelection(
+                    count: appState.attendingCount,
+                    onSelection: (count) => appState.setAttendingCount(count),
                   ),
                   // ...to here.
                   const Header('Discussion'),
                   GuestBook(
                     addMessage: (message) =>
-                        appState.addMessageToGuestBook(message), messages: [],
+                        appState.addMessageToGuestBook(message), messages: appState.guestBookMessages,
                   ),
                 ],
               ],
